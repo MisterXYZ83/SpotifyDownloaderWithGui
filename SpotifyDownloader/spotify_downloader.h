@@ -5,6 +5,13 @@
 #include "DynamicBuffer.h"
 #include "SpotifyGuiController.h"
 
+#include <lame.h>
+
+extern "C"
+{
+	FILE __iob_func[3] = { *stdin,*stdout,*stderr };
+}
+
 //session callbacks
 void __stdcall logged_in(sp_session *session, sp_error error);
 void __stdcall logged_out(sp_session *session);
@@ -86,6 +93,7 @@ static DWORD __stdcall SpotifyMainProc(LPVOID data);
 #define SPOTIFY_SEARCH_ITEM_COMPLETE	WM_APP + 59
 #define SPOTIFY_STOP_SINGLE_TRACK		WM_APP + 60
 #define SPOTIFY_CLOSE_SINGLE_TRACK		WM_APP + 61
+#define SPOTIFY_DOWNLOAD_STATUS			WM_APP + 62
 
 struct SpotifyUserData
 {
@@ -130,6 +138,26 @@ struct SpotifyUserData
 	sp_playlist_callbacks *playlist_cb;
 
 	SpotifyGuiController *guiController;
+
+	lame_global_flags *lame;
+	void *encoder_buffer;
+	int mp3_buffersize;
+	FILE *fp_mp3;
+	int encoder_ready;
+	int track_downloaded;
+
+	int actual_download_album;
+	int actual_download_track;
+
+	//cache nomi
+	char actual_dir_name[1024];
+	const char *actual_download_album_name;
+	const char *actual_download_track_name;
+
+	int actual_download_track_is_single;
+	int actual_samples;
+	int track_total_samples;
+	int last_written_samples;
 };
 
 
@@ -140,3 +168,4 @@ bool CloseSpotifySession(SpotifyUserData *data);
 
 int SpotifyLogIn(SpotifyUserData *data, char *username, char *password);
 int SpotifyLogOut(SpotifyUserData *data);
+int SpotifyDownloadTrack(SpotifyUserData *data, sp_track *track);

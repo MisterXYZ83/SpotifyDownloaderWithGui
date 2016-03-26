@@ -4,10 +4,20 @@
 #include "spotify_downloader.h"
 
 #include <time.h>
+#include <math.h>
+
 
 void CleanSpotifySession(SpotifyUserData *data);
 LRESULT SpotifyHandleMessage(SpotifyUserData *user_data, UINT msg, WPARAM wparam, LPARAM lparam);
 void SpotifyMainLoop(SpotifyUserData *user_data);
+
+
+int PrepareEncoder(SpotifyUserData *context, const sp_audioformat *fmt);
+int CloseEncoder(SpotifyUserData *context);
+int FreeMP3Buffer(SpotifyUserData *context);
+int AllocMp3Buffer(SpotifyUserData *context, int num_frames);
+void track_ended(SpotifyUserData *context);
+
 
 uint8_t *g_appkey;
 size_t g_appkey_size;
@@ -56,6 +66,11 @@ bool CreateSpotifySession(SpotifyUserData **data)
 	//alloco la struttura
 	*data = user_data = new SpotifyUserData;
 	memset(user_data, 0, sizeof(SpotifyUserData));
+
+	user_data->lame = lame_init();
+	user_data->encoder_ready = 0;
+
+	AllocMp3Buffer(user_data, 0);
 
 	user_data->spotify_flag = 0;
 	InitializeCriticalSection(&user_data->spotify_lock);
@@ -179,6 +194,64 @@ bool CloseSpotifySession(SpotifyUserData *data)
 }
 
 
+int SpotifyDownloadTrack(SpotifyUserData *instance, sp_track *track)
+{
+
+	if (instance && track)
+	{
+		//scarico la traccia
+
+		char file_name[2048];
+		memset(file_name, 0, 2047);
+		
+		if (sp_track_is_loaded(instance->track))
+		{
+			//traccia caricata..posso preparare
+			const char *track_name = sp_track_name(instance->track);
+
+			_snprintf(file_name, 2047, "%s.mp3", track_name);
+
+			instance->actual_download_track_is_single = 1;
+			instance->actual_download_track_name = track_name;
+			//instance->actual_file = new WaveFile(file_name);
+			instance->actual_samples = 0;
+			instance->track_total_samples = sp_track_duration(instance->track);
+			instance->last_written_samples = 0;
+
+			instance->fp_mp3 = fopen(file_name, "wb");
+
+			if (!instance->fp_mp3)
+			{
+				//printf("Errore apertura file....\r\n");
+				return -1;
+			}
+
+			//printf("Avvio download %s\r\n", track_name);
+
+		}
+
+		sp_error err = sp_session_player_load(instance->spotify, instance->track);
+
+		if (err == SP_ERROR_OK)
+		{
+			instance->track_downloaded = 0;
+			sp_session_player_play(instance->spotify, true);
+		}
+		else if (err == SP_ERROR_IS_LOADING)
+		{
+			return SP_ERROR_IS_LOADING;
+		}
+		else if (err == SP_ERROR_NO_STREAM_AVAILABLE)
+		{
+			return SP_ERROR_NO_STREAM_AVAILABLE;
+		}
+
+		return SP_ERROR_OK;
+	}
+	else return -1;
+}
+
+
 ////////////////////////////////////////
 //ROUTINE PRIVATE
 
@@ -201,7 +274,7 @@ LRESULT CALLBACK SpotifyWndProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 		CREATESTRUCT *params = (CREATESTRUCT *)lParam;
 		SetWindowLong(hwnd, GWLP_USERDATA, (LONG)params->lpCreateParams);
 	}
-	else if (uMsg >= SPOTIFY_LOGGED_IN && uMsg <= SPOTIFY_CLOSE_NUTS)
+	else if (uMsg >= SPOTIFY_LOGGED_IN && uMsg <= SPOTIFY_DOWNLOAD_STATUS)
 	{
 
 		res = -1;
@@ -347,7 +420,30 @@ LRESULT SpotifyHandleMessage(SpotifyUserData *user_data, UINT msg, WPARAM wparam
 			user_data->guiController->LogMessage((char *)lparam);
 		}
 	}
+
+	case SPOTIFY_CLOSE_SINGLE_TRACK:
+	{
+
+		EnterCriticalSection(&user_data->spotify_lock);
+
+		sp_session_player_play(user_data->spotify, false);
+
+		track_ended(user_data);
+
+		LeaveCriticalSection(&user_data->spotify_lock);
+	}
 	break;
+
+	case SPOTIFY_DOWNLOAD_STATUS:
+	{
+
+		EnterCriticalSection(&user_data->spotify_lock);
+
+
+		LeaveCriticalSection(&user_data->spotify_lock);
+	}
+	break;
+
 	}
 	return 0L;
 }
@@ -506,52 +602,177 @@ void __stdcall notify_main_thread(sp_session *session)
 	LeaveCriticalSection(&context->spotify_lock);
 }
 
+int PrepareEncoder(SpotifyUserData *context, const sp_audioformat *fmt)
+{
+	if (!context || !context->lame) return 0;
+
+	//context->lame = lame_init();
+
+	//if ( !context->lame ) return 0;
+
+	lame_set_num_channels(context->lame, fmt->channels);
+	lame_set_in_samplerate(context->lame, fmt->sample_rate); // 
+	lame_set_brate(context->lame, 320); //320kbps
+	lame_set_mode(context->lame, STEREO); //stereo
+	lame_set_quality(context->lame, 2); //alta qualita
+
+	context->track_total_samples = (int)ceil(((double)context->track_total_samples * fmt->sample_rate) / 1000.0);
+
+	if (lame_init_params(context->lame) < 0)
+	{
+		lame_close(context->lame);
+		context->lame = 0;
+		return -1;
+	}
+
+	context->encoder_ready = 1;
+
+	return 1;
+}
+
+int AllocMp3Buffer(SpotifyUserData *context, int num_frames)
+{
+	//if ( !context->lame ) return 0;
+
+
+	//context->mp3_buffersize = 2 * num_frames + 7200; //non lo uso ..... mi tengo molto largo
+
+	context->mp3_buffersize = 500000;
+
+	context->encoder_buffer = malloc(context->mp3_buffersize);
+
+	memset(context->encoder_buffer, 0, context->mp3_buffersize);
+
+
+	return 1;
+}
+
+int FreeMP3Buffer(SpotifyUserData *context)
+{
+	if (context->encoder_buffer) free(context->encoder_buffer);
+
+	context->encoder_buffer = 0;
+	context->mp3_buffersize = 0;
+
+	return 0;
+}
+
+int CloseEncoder(SpotifyUserData *context)
+{
+	if (!context) return 0;
+
+	lame_close(context->lame);
+	context->lame = 0;
+
+	FreeMP3Buffer(context);
+}
+
+
 int __stdcall music_delivery(sp_session *session, const sp_audioformat *format, const void *frames, int num_frames)
 {
+
+
 	SpotifyUserData *context = (SpotifyUserData *)sp_session_userdata(session);
 
 	int ret_frames = 0;
 
-	EnterCriticalSection(&context->spotify_buffer_lock);
-
-	if (context->buffer)
+	if (context && !context->encoder_ready)
 	{
-		//ret_frames = context->buffer->WriteData(num_frames, (BYTE *)frames);
-		//void *pcm_data = context->buffer->GetMemory(sizeof(short)*2*num_frames, 1);
-		int free_mem = context->buffer->CountFreeMemory();
+		EnterCriticalSection(&context->spotify_buffer_lock);
+		//preparo l'encoder
+		if (!PrepareEncoder(context, format)) exit(1);
+		//configuro il buffer
+		//if ( !AllocMp3Buffer(context, num_frames) ) exit(1);
 
-		if (context->last_bufferoverrun)
+		//primo frame ritardo
+		WakeAllConditionVariable(&context->spotify_buffer_cond);
+
+		LeaveCriticalSection(&context->spotify_buffer_lock);
+
+		return 0;
+	}
+
+	EnterCriticalSection(&context->spotify_lock);
+
+	if (!context->track_downloaded)
+	{
+		if (context->actual_samples >= context->track_total_samples)
 		{
-			//printf("DELIVERY PAUSE - Free mem: %d\r\n", free_mem);
-			WakeAllConditionVariable(&context->spotify_buffer_cond);
 
-			LeaveCriticalSection(&context->spotify_buffer_lock);
+			//printf("\r\nTraccia terminata (autoclose)!!\r\n");
+
+			context->track_downloaded = 1;
+
+			//sp_session_player_play(context->spotify, false);
+
+			//track_ended(context);
+			WakeAllConditionVariable(&context->spotify_cond);
+
+			LeaveCriticalSection(&context->spotify_lock);
+
+			PostMessage(context->spotify_window, SPOTIFY_CLOSE_SINGLE_TRACK, 0, 0);
 
 			return 0;
-		}
-
-		if (free_mem >= num_frames * 2 * sizeof(short))
-		{
-			ret_frames = context->buffer->WriteData((void *)frames, num_frames * 2 * sizeof(short)) / sizeof(short) / 2;
-
-			context->last_bufferoverrun = 0;
-		}
-		else
-		{
-			ret_frames = 0;
-
-			if (!context->last_bufferoverrun)
-			{
-				//printf("DELIVERY Write -> NEXT WILL OVERRUN! - Free mem: %d\r\n", free_mem);
-
-				ret_frames = context->buffer->WriteData((void *)frames, num_frames * 2 * sizeof(short)) / sizeof(short) / 2;
-				context->last_bufferoverrun = 1;
-			}
 		}
 	}
 	else
 	{
-		ret_frames = num_frames;
+		WakeAllConditionVariable(&context->spotify_cond);
+
+		LeaveCriticalSection(&context->spotify_lock);
+
+		//printf("Prossima traccia in caricamento....\r\n");
+
+		return 0;
+	}
+
+	WakeAllConditionVariable(&context->spotify_cond);
+
+	LeaveCriticalSection(&context->spotify_lock);
+
+
+
+
+	EnterCriticalSection(&context->spotify_buffer_lock);
+
+	//encoding, uso il worst case buffer lenght => 1.25 * n_sample + 7200
+
+	int ret = lame_encode_buffer_interleaved(context->lame, (short *)frames, num_frames, (unsigned char *)context->encoder_buffer, 2 * num_frames + 7200);
+
+	if (ret > 0)
+	{
+		//ok caricato il frame ed encodato, scrivo su file
+		if (context->fp_mp3) fwrite(context->encoder_buffer, 1, ret, context->fp_mp3);
+
+		ret_frames = num_frames; //ho comunque consumato tutto, buffering interno
+
+		context->actual_samples += ret_frames;
+
+		float secs = (float)context->actual_samples / format->sample_rate;
+		float last_secs = (float)context->last_written_samples / format->sample_rate;
+
+		//printf("Downloading Album[%i] | %s [%2.2f]\r\n", context->actual_download_album, context->actual_download_track_name, secs);
+		if (secs - last_secs >= 10.0)
+		{
+			context->last_written_samples = context->actual_samples;
+			PostMessage(context->spotify_window, SPOTIFY_DOWNLOAD_STATUS, 0, 0);
+		}
+	}
+	else
+	{
+
+		if (!ret)
+		{
+			//printf("_");
+			ret_frames = num_frames;
+		}
+		else
+		{
+			//printf("Encoder ERRROR[%d]\r\n", ret);
+			PostMessage(context->spotify_window, SPOTIFY_DOWNLOAD_STATUS, (WPARAM)-1, 0);
+			ret_frames = 0;
+
+		}
 	}
 
 	WakeAllConditionVariable(&context->spotify_buffer_cond);
@@ -588,7 +809,57 @@ void __stdcall log_message(sp_session *session, const char *data)
 
 void __stdcall end_of_track(sp_session *session)
 {
+	SpotifyUserData *context = (SpotifyUserData *)sp_session_userdata(session);
 
+	//traccia terminata, vado avant
+
+	track_ended(context);
+}
+
+
+void track_ended(SpotifyUserData *context)
+{
+	if (context && context->encoder_buffer && context->track)
+	{
+
+		//printf("\r\nTraccia %s terminata!!\r\n\r\n", context->actual_download_track_name);
+
+		//flush dei buffer dell'encoder
+
+		int ret = lame_encode_flush(context->lame, (unsigned char *)context->encoder_buffer, context->mp3_buffersize);
+
+		if (ret > 0 && context->fp_mp3)
+		{
+			//scrivo l'ultimo frame
+
+			fwrite(context->encoder_buffer, 1, ret, context->fp_mp3);
+		}
+
+		//chiudo l'encoder ed il file
+
+		//CloseEncoder(context);
+
+		if (context->fp_mp3) fclose(context->fp_mp3);
+
+		context->fp_mp3 = 0;
+
+		//azzero variabili di stato
+
+		context->actual_samples = 0;
+		context->track_downloaded = 0;
+
+		context->actual_download_track_name = 0;
+
+		//incremento indice di traccia e posto
+		context->actual_download_track++;
+
+		context->encoder_ready = 0;
+
+		sp_session_player_unload(context->spotify);
+
+		//notifica al thread main il termine delle operazioni
+
+	}
 }
 
 void __stdcall streaming_error(sp_session *session, sp_error error)
