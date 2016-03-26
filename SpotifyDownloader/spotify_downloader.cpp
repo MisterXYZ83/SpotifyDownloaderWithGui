@@ -1,7 +1,7 @@
 #include <Windows.h>
+#include <stdio.h>
 
 #include "spotify_downloader.h"
-#include "libspotify_account.h"
 
 #include <time.h>
 
@@ -9,12 +9,44 @@ void CleanSpotifySession(SpotifyUserData *data);
 LRESULT SpotifyHandleMessage(SpotifyUserData *user_data, UINT msg, WPARAM wparam, LPARAM lparam);
 void SpotifyMainLoop(SpotifyUserData *user_data);
 
-
-
+uint8_t *g_appkey;
+size_t g_appkey_size;
 
 bool CreateSpotifySession(SpotifyUserData **data)
 {
 	if (data == NULL) return NULL;
+
+	//carico da file la key, nome utente e password
+	char *key_file = "spotify_appkey.key";
+	char cur_dir[50001];
+	char full_path[100001];
+	memset(full_path, 0, 100001);
+	memset(cur_dir, 0, 50001);
+
+	if (GetCurrentDirectoryA(50000, cur_dir))
+	{
+		size_t len_path = strnlen_s(cur_dir, 50000);
+		
+		strcpy_s(full_path, cur_dir);
+		
+		full_path[len_path] = '\\';
+		
+		strcpy_s(&full_path[len_path+1], 10000-len_path, key_file);
+	}
+
+	FILE *fp = NULL;
+	fopen_s(&fp, full_path, "rb");
+
+	if (!fp) return false;
+
+	fseek(fp, 0, SEEK_END);
+	g_appkey_size = ftell(fp);
+	fseek(fp, 0, SEEK_SET);
+
+	g_appkey = (uint8_t*)malloc(g_appkey_size*sizeof(uint8_t));
+	fread(g_appkey, 1, g_appkey_size, fp);
+
+	fclose(fp);
 
 	SpotifyUserData *user_data = NULL;
 	//l'utente deve fornire un puntatore vuoto!
@@ -47,7 +79,6 @@ bool CreateSpotifySession(SpotifyUserData **data)
 	{
 		user_data->spotify_window = CreateWindowEx(0, MESSAGE_WINDOW_CLASS_NAME_SPOTIFY, MESSAGE_WINDOW_CLASS_NAME_SPOTIFY, 0, 0, 0, 0, 0, HWND_MESSAGE, NULL, NULL, user_data);
 	}
-
 
 	//creo la sessione spotify
 	memset(&user_data->spotify_config, 0, sizeof(sp_session_config));
@@ -106,7 +137,7 @@ int SpotifyLogIn(SpotifyUserData *data, char *username, char *password)
 
 		if (username && password)
 		{
-			sp_error err = sp_session_login(data->spotify, username, password, 1, 0);
+			sp_error err = sp_session_login(data->spotify, username, password, 0, 0);
 
 			if (SP_ERROR_OK != err) ret = 0;
 			else ret = 1;
@@ -206,7 +237,7 @@ LRESULT SpotifyHandleMessage(SpotifyUserData *user_data, UINT msg, WPARAM wparam
 
 		EnterCriticalSection(&user_data->spotify_lock);
 
-		if (user_data->guiController) user_data->guiController->LoggedIn();
+		if (user_data->guiController) user_data->guiController->LoggedIn(wparam);
 
 		/*if ( user_data->container && !user_data->metadata_loaded )
 		{
@@ -277,14 +308,16 @@ LRESULT SpotifyHandleMessage(SpotifyUserData *user_data, UINT msg, WPARAM wparam
 	case SPOTIFY_LOGGED_OUT:
 	{
 		user_data->spotify_logged_in = 0;
-
+		
 		EnterCriticalSection(&user_data->spotify_lock);
+
+		sp_session_forget_me(user_data->spotify);
 
 		user_data->track = 0;
 		user_data->metadata_loaded = 0;
 		user_data->container = 0;
 
-		//if (guiController) guiController->LoggedOut();
+		if (user_data->guiController) user_data->guiController->LoggedOut();
 
 		LeaveCriticalSection(&user_data->spotify_lock);
 
@@ -423,9 +456,12 @@ void __stdcall  logged_in(sp_session *session, sp_error error)
 {
 	SpotifyUserData *context = (SpotifyUserData *)sp_session_userdata(session);
 
-	//EnterCriticalSection(&context->spotify_lock);
+	/*EnterCriticalSection(&context->spotify_lock);
 
-	//LeaveCriticalSection(&context->spotify_lock);
+	context->container = sp_session_playlistcontainer(session);
+	sp_playlistcontainer_add_callbacks(context->container, context->container_cb, context->guiController);
+
+	LeaveCriticalSection(&context->spotify_buffer_lock);*/
 
 	PostMessage(context->spotify_window, SPOTIFY_LOGGED_IN, (WPARAM)error, 0);
 }

@@ -4,6 +4,7 @@
 #include "mia_treeview.h";
 #include "my_button.h";
 #include "my_report.h";
+#include "my_edit.h"
 #include <libspotify\api.h>
 
 class PlugIn;
@@ -17,6 +18,8 @@ class SpotifyGuiController : public BaseListener
 	MyTreeView	*trackTree;
 	MyReport	*logWin;
 	MyButton	*logButton;
+	MyEdit		*usernameEdit;
+	MyEdit		*passwordEdit;
 
 	HINSTANCE	instance;
 
@@ -58,7 +61,7 @@ public:
 	SpotifyGuiController (void *userdata);
 
 	void UpdateMetadata ( );
-	void LoggedIn ();
+	void LoggedIn (int err);
 	void LoggedOut ();
 
 	void StartPlaying();

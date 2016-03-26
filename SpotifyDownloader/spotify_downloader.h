@@ -75,6 +75,17 @@ static DWORD __stdcall SpotifyMainProc(LPVOID data);
 #define SPOTIFY_CONNECTIONSTATE_UPDATED WM_APP + 18
 #define SPOTIFY_SCROBBLE_ERROR          WM_APP + 20
 #define SPOTIFY_CLOSE_NUTS              WM_APP + 50
+#define SPOTIFY_SEARCH_COMPLETE			WM_APP + 51
+#define SPOTIFY_START_SEARCH			WM_APP + 52
+#define SPOTIFY_BROWSE_ALBUM			WM_APP + 53
+#define SPOTIFY_DOWNLOAD_ALBUM			WM_APP + 54
+#define SPOTIFY_DOWNLOAD_TRACK			WM_APP + 55
+#define SPOTIFY_START_DOWNLOAD_LIST		WM_APP + 56
+#define SPOTIFY_START_NEXT_DOWNLOAD		WM_APP + 57
+#define SPOTIFY_DOWNLOAD_SINGLE_TRACK	WM_APP + 58
+#define SPOTIFY_SEARCH_ITEM_COMPLETE	WM_APP + 59
+#define SPOTIFY_STOP_SINGLE_TRACK		WM_APP + 60
+#define SPOTIFY_CLOSE_SINGLE_TRACK		WM_APP + 61
 
 struct SpotifyUserData
 {
@@ -91,8 +102,6 @@ struct SpotifyUserData
 
 	HWND				spotify_window;
 
-
-	sp_playlistcontainer *container;
 	sp_track *track;
 
 	int metadata_loaded;
@@ -111,10 +120,13 @@ struct SpotifyUserData
 	sp_session	*spotify;
 	sp_session_config spotify_config;
 	sp_session_callbacks spotify_session_cb;
+	sp_playlistcontainer *container;
 
 	DynamicBuffer			*buffer;
 
 	int spotify_active;
+
+	sp_playlistcontainer_callbacks *container_cb;
 
 	SpotifyGuiController *guiController;
 };

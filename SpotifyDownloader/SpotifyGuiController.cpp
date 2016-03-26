@@ -8,7 +8,8 @@
 #define LOGREPORT_ID	2
 #define PLAYLIST_ID		3
 #define TRACK_ID		4
-
+#define USERNAME_ID		5
+#define PASSWORD_ID		6
 
 SpotifyGuiController::SpotifyGuiController(void *userdata)
 {
@@ -24,7 +25,7 @@ SpotifyGuiController::SpotifyGuiController(void *userdata)
 
 	isPlaylistCallbackSetted = 0;
 	
-	win = new MyWindow(instance);
+	win = new MyWindow(instance, 100, 100, 900, 600);
 	
 	selected_playlist = 0;
 	selected_track = 0;
@@ -85,7 +86,7 @@ SpotifyGuiController::SpotifyGuiController(void *userdata)
 		}
 
 
-		logWin = new MyReport(instance, win->getHWND(), 10, 420, 780, 160);
+		logWin = new MyReport(instance, win->getHWND(), 10, 420, 880, 160);
 
 		if ( logWin )
 		{
@@ -95,7 +96,7 @@ SpotifyGuiController::SpotifyGuiController(void *userdata)
 			logWin->setBaseListener(this);
 		}
 
-		logButton = new MyButton(instance, win->getHWND(), 690, 10, 100, 40);
+		logButton = new MyButton(instance, win->getHWND(), 690, 10, 200, 40);
 
 		if ( logButton )
 		{
@@ -103,6 +104,26 @@ SpotifyGuiController::SpotifyGuiController(void *userdata)
 			logButton->setEnableState(TRUE);
 			logButton->setID(LOGBUTTON_ID);
 			logButton->setBaseListener(this);
+		}
+
+		usernameEdit = new MyEdit(instance, win->getHWND(), 0,  690, 60, 200, 20);
+		
+		if (usernameEdit)
+		{
+			usernameEdit->setCaption(TEXT("Username..."));
+			usernameEdit->setEnableState(TRUE);
+			usernameEdit->setID(USERNAME_ID);
+			usernameEdit->setBaseListener(this);
+		}
+
+		passwordEdit = new MyEdit(instance, win->getHWND(), ES_PASSWORD, 690, 90, 200, 20);
+
+		if (passwordEdit)
+		{
+			passwordEdit->setCaption(TEXT("Password..."));
+			passwordEdit->setEnableState(TRUE);
+			passwordEdit->setID(PASSWORD_ID);
+			passwordEdit->setBaseListener(this);
 		}
 	}
 }
@@ -128,7 +149,25 @@ LRESULT SpotifyGuiController::executeMessage(UINT idcontrol, HWND hwnd, UINT msg
 			}
 			else
 			{
-				int ret = SpotifyLogIn((SpotifyUserData *)data, "", "");
+				char username[10001];
+				char password[10001];
+				
+				memset(username, 0, 10001);
+				memset(password, 0, 10001);
+
+				if (!usernameEdit->GetText(username, 10000))
+				{
+					logWin->addRow(TEXT("Errore username"));
+					return 0;
+				}
+
+				if (!passwordEdit->GetText(password, 10000)) 
+				{
+					logWin->addRow(TEXT("Errore password"));
+					return 0;
+				}
+
+				int ret = SpotifyLogIn((SpotifyUserData *)data, username, password);
 
 				if ( ret )
 				{
@@ -279,20 +318,37 @@ void SpotifyGuiController::UpdateMetadata ( )
 	//RefreshPlaylistContainer();
 }
 
-void SpotifyGuiController::LoggedIn ()
+void SpotifyGuiController::LoggedIn (int val)
 {
+	bool ok = (val == SP_ERROR_OK);
+
 	if ( logButton )
 	{
-		logButton->setEnableState(TRUE);
-		logButton->setCaption(TEXT("Logout"));
+		if (ok)
+		{
+			logButton->setEnableState(TRUE);
+			logButton->setCaption(TEXT("Logout"));
+		}
 	}
 
 	if ( logWin )
 	{
-		logWin->addRow(TEXT("Spotify Successful Logged IN"));
+		if (ok)
+		{
+			logButton->setEnableState(TRUE);
+			logWin->addRow(TEXT("Spotify Successful Logged IN"));
+		}
+		else
+		{
+			logWin->addRow(TEXT("Errore di login..."));
+			logButton->setEnableState(TRUE);
+
+			SpotifyUserData *sp_data = (SpotifyUserData *)spotify_userdata;
+		}
 	}
 
 	//avvio caricamento metadati
+	if (!ok) return;
 
 	SpotifyUserData *data = (SpotifyUserData *)spotify_userdata;
 
@@ -354,7 +410,7 @@ void SpotifyGuiController::RefreshPlaylistContainer()
 
 void SpotifyGuiController::LoggedOut ()
 {
-if ( logButton )
+	if ( logButton )
 	{
 		logButton->setEnableState(TRUE);
 		logButton->setCaption(TEXT("Login"));
