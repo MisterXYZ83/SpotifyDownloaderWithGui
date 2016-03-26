@@ -127,6 +127,7 @@ struct SpotifyUserData
 	int spotify_active;
 
 	sp_playlistcontainer_callbacks *container_cb;
+	sp_playlist_callbacks *playlist_cb;
 
 	SpotifyGuiController *guiController;
 };

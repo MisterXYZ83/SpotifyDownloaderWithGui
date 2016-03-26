@@ -25,8 +25,8 @@ class SpotifyGuiController : public BaseListener
 
 	BOOL isPlaylistCallbackSetted;
 
-	sp_playlistcontainer_callbacks *playlistcontainer_cb;
-	sp_playlist_callbacks *playlist_cb;
+	//sp_playlistcontainer_callbacks *playlistcontainer_cb;
+	//sp_playlist_callbacks *playlist_cb;
 
 	sp_playlist *selected_playlist;
 	sp_track *selected_track;

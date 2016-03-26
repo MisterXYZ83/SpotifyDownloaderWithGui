@@ -456,12 +456,12 @@ void __stdcall  logged_in(sp_session *session, sp_error error)
 {
 	SpotifyUserData *context = (SpotifyUserData *)sp_session_userdata(session);
 
-	/*EnterCriticalSection(&context->spotify_lock);
+	EnterCriticalSection(&context->spotify_lock);
 
 	context->container = sp_session_playlistcontainer(session);
 	sp_playlistcontainer_add_callbacks(context->container, context->container_cb, context->guiController);
 
-	LeaveCriticalSection(&context->spotify_buffer_lock);*/
+	LeaveCriticalSection(&context->spotify_lock);
 
 	PostMessage(context->spotify_window, SPOTIFY_LOGGED_IN, (WPARAM)error, 0);
 }

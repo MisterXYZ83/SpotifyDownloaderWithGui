@@ -30,31 +30,31 @@ SpotifyGuiController::SpotifyGuiController(void *userdata)
 	selected_playlist = 0;
 	selected_track = 0;
 
-	playlistcontainer_cb = (sp_playlistcontainer_callbacks *)malloc(sizeof(sp_playlistcontainer_callbacks));
-	memset(playlistcontainer_cb, 0, sizeof(sp_playlistcontainer_callbacks));
+	data->container_cb = (sp_playlistcontainer_callbacks *)malloc(sizeof(sp_playlistcontainer_callbacks));
+	memset(data->container_cb, 0, sizeof(sp_playlistcontainer_callbacks));
 
-	playlistcontainer_cb->container_loaded = SpotifyGuiController::container_loaded;
-	playlistcontainer_cb->playlist_added = SpotifyGuiController::playlist_added;
-	playlistcontainer_cb->playlist_moved = SpotifyGuiController::playlist_moved;
-	playlistcontainer_cb->playlist_removed = SpotifyGuiController::playlist_removed;
+	data->container_cb->container_loaded = SpotifyGuiController::container_loaded;
+	data->container_cb->playlist_added = SpotifyGuiController::playlist_added;
+	data->container_cb->playlist_moved = SpotifyGuiController::playlist_moved;
+	data->container_cb->playlist_removed = SpotifyGuiController::playlist_removed;
 
-	playlist_cb = (sp_playlist_callbacks *)malloc(sizeof(sp_playlist_callbacks));
-	memset(playlist_cb, 0, sizeof(sp_playlist_callbacks));
+	data->playlist_cb = (sp_playlist_callbacks *)malloc(sizeof(sp_playlist_callbacks));
+	memset(data->playlist_cb, 0, sizeof(sp_playlist_callbacks));
 
-	playlist_cb->tracks_added = SpotifyGuiController::tracks_added;
-	playlist_cb->tracks_removed = SpotifyGuiController::tracks_removed;
-	playlist_cb->tracks_moved = SpotifyGuiController::tracks_moved;
-	playlist_cb->playlist_state_changed = SpotifyGuiController::playlist_state_changed;
-	playlist_cb->playlist_renamed = SpotifyGuiController::playlist_renamed;
-	playlist_cb->playlist_state_changed = SpotifyGuiController::playlist_state_changed;
-	playlist_cb->playlist_update_in_progress = SpotifyGuiController::playlist_update_in_progress;
-	playlist_cb->playlist_metadata_updated = SpotifyGuiController::playlist_metadata_updated;
-	playlist_cb->track_created_changed = SpotifyGuiController::track_created_changed;
-	playlist_cb->track_seen_changed = SpotifyGuiController::track_seen_changed;
-	playlist_cb->description_changed = SpotifyGuiController::description_changed;
-	playlist_cb->image_changed = SpotifyGuiController::image_changed;
-	playlist_cb->track_message_changed = SpotifyGuiController::track_message_changed;
-	playlist_cb->subscribers_changed = SpotifyGuiController::subscribers_changed;
+	data->playlist_cb->tracks_added = SpotifyGuiController::tracks_added;
+	data->playlist_cb->tracks_removed = SpotifyGuiController::tracks_removed;
+	data->playlist_cb->tracks_moved = SpotifyGuiController::tracks_moved;
+	data->playlist_cb->playlist_state_changed = SpotifyGuiController::playlist_state_changed;
+	data->playlist_cb->playlist_renamed = SpotifyGuiController::playlist_renamed;
+	data->playlist_cb->playlist_state_changed = SpotifyGuiController::playlist_state_changed;
+	data->playlist_cb->playlist_update_in_progress = SpotifyGuiController::playlist_update_in_progress;
+	data->playlist_cb->playlist_metadata_updated = SpotifyGuiController::playlist_metadata_updated;
+	data->playlist_cb->track_created_changed = SpotifyGuiController::track_created_changed;
+	data->playlist_cb->track_seen_changed = SpotifyGuiController::track_seen_changed;
+	data->playlist_cb->description_changed = SpotifyGuiController::description_changed;
+	data->playlist_cb->image_changed = SpotifyGuiController::image_changed;
+	data->playlist_cb->track_message_changed = SpotifyGuiController::track_message_changed;
+	data->playlist_cb->subscribers_changed = SpotifyGuiController::subscribers_changed;
 
 
 	if ( win )
@@ -274,8 +274,10 @@ void SpotifyGuiController::RefreshPlaylistTracks ( sp_playlist *plist )
 
 		if ( trackTree ) trackTree->removeAllItem();
 
+		SpotifyUserData *sp_data = (SpotifyUserData *)spotify_userdata;
+
 		//ho la playlist, carico le tracce
-		sp_playlist_add_callbacks(plist, playlist_cb, this);
+		sp_playlist_add_callbacks(plist, sp_data->playlist_cb, this);
 
 		if ( sp_playlist_is_loaded(plist) )
 		{
@@ -354,13 +356,13 @@ void SpotifyGuiController::LoggedIn (int val)
 
 	if ( data->spotify )
 	{
-		data->container = sp_session_playlistcontainer(data->spotify);
+		//data->container = sp_session_playlistcontainer(data->spotify);
 		
 		if ( logWin ) logWin->addRow(TEXT("Ricezione informazioni...."));
 		
 		if (data->container && !isPlaylistCallbackSetted )
 		{
-			sp_playlistcontainer_add_callbacks(data->container, playlistcontainer_cb, this);
+			//sp_playlistcontainer_add_callbacks(data->container, playlistcontainer_cb, this);
 
 			isPlaylistCallbackSetted = 1;
 
@@ -553,11 +555,12 @@ void __stdcall SpotifyGuiController::subscribers_changed(sp_playlist *pl, void *
 void __stdcall SpotifyGuiController::playlist_added(sp_playlistcontainer *pc, sp_playlist *playlist, int position, void *userdata)
 {
 	SpotifyGuiController *instance = (SpotifyGuiController *)userdata;
+	SpotifyUserData *sp_data = (SpotifyUserData *)instance->spotify_userdata;
 
 	if (instance->logWin) instance->logWin->addRow(TEXT("Playlist Received...."));
 
 	//aggiungo la callback per la playlist
-	sp_playlist_add_callbacks(playlist, instance->playlist_cb, instance);
+	sp_playlist_add_callbacks(playlist, sp_data->playlist_cb, instance);
 }
 
 void __stdcall SpotifyGuiController::playlist_removed(sp_playlistcontainer *pc, sp_playlist *playlist, int position, void *userdata)
