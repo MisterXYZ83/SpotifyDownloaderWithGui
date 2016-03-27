@@ -10,6 +10,7 @@
 #define TRACK_ID		4
 #define USERNAME_ID		5
 #define PASSWORD_ID		6
+#define DOWNLOADBUTTON_ID 7
 
 SpotifyGuiController::SpotifyGuiController(void *userdata)
 {
@@ -125,6 +126,16 @@ SpotifyGuiController::SpotifyGuiController(void *userdata)
 			passwordEdit->setID(PASSWORD_ID);
 			passwordEdit->setBaseListener(this);
 		}
+
+		downloadButton = new MyButton(instance, win->getHWND(), 690, 120, 200, 40);
+
+		if (downloadButton)
+		{
+			downloadButton->setCaption(TEXT("Download"));
+			downloadButton->setEnableState(TRUE);
+			downloadButton->setID(DOWNLOADBUTTON_ID);
+			downloadButton->setBaseListener(this);
+		}
 	}
 }
 
@@ -179,6 +190,16 @@ LRESULT SpotifyGuiController::executeMessage(UINT idcontrol, HWND hwnd, UINT msg
 		}
 		break;
 		
+		case DOWNLOADBUTTON_ID:
+		{
+			if (selected_track)
+			{
+				SpotifyDownloadTrack(data, selected_track);
+				//if (logWin) logWin->addRow(TEXT("Inizio download %s"), sp_track_name(selected_track));
+			}
+		}
+		break;
+
 		case PLAYLIST_ID:
 		{
 			if ( WM_NOTIFY == msg && TVN_SELCHANGED == ((LPNMHDR)lParam)->code )

@@ -7,11 +7,6 @@
 
 #include <lame.h>
 
-extern "C"
-{
-	FILE __iob_func[3] = { *stdin,*stdout,*stderr };
-}
-
 //session callbacks
 void __stdcall logged_in(sp_session *session, sp_error error);
 void __stdcall logged_out(sp_session *session);
@@ -157,6 +152,7 @@ struct SpotifyUserData
 	int actual_download_track_is_single;
 	int actual_samples;
 	int track_total_samples;
+	int track_total_ms;
 	int last_written_samples;
 };
 

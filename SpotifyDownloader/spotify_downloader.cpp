@@ -22,6 +22,11 @@ void track_ended(SpotifyUserData *context);
 uint8_t *g_appkey;
 size_t g_appkey_size;
 
+extern "C"
+{
+	FILE __iob_func[3] = { *stdin,*stdout,*stderr };
+}
+
 bool CreateSpotifySession(SpotifyUserData **data)
 {
 	if (data == NULL) return NULL;
@@ -204,21 +209,23 @@ int SpotifyDownloadTrack(SpotifyUserData *instance, sp_track *track)
 		char file_name[2048];
 		memset(file_name, 0, 2047);
 		
+		instance->track = track;
+
 		if (sp_track_is_loaded(instance->track))
 		{
 			//traccia caricata..posso preparare
 			const char *track_name = sp_track_name(instance->track);
 
-			_snprintf(file_name, 2047, "%s.mp3", track_name);
+			_snprintf_s(file_name, 2047, "%s.mp3", track_name);
 
 			instance->actual_download_track_is_single = 1;
 			instance->actual_download_track_name = track_name;
 			//instance->actual_file = new WaveFile(file_name);
 			instance->actual_samples = 0;
-			instance->track_total_samples = sp_track_duration(instance->track);
+			instance->track_total_samples = instance->track_total_ms = sp_track_duration(instance->track);
 			instance->last_written_samples = 0;
 
-			instance->fp_mp3 = fopen(file_name, "wb");
+			fopen_s(&instance->fp_mp3, file_name, "wb");
 
 			if (!instance->fp_mp3)
 			{
@@ -420,6 +427,7 @@ LRESULT SpotifyHandleMessage(SpotifyUserData *user_data, UINT msg, WPARAM wparam
 			user_data->guiController->LogMessage((char *)lparam);
 		}
 	}
+	break;
 
 	case SPOTIFY_CLOSE_SINGLE_TRACK:
 	{
@@ -439,6 +447,23 @@ LRESULT SpotifyHandleMessage(SpotifyUserData *user_data, UINT msg, WPARAM wparam
 
 		EnterCriticalSection(&user_data->spotify_lock);
 
+		if (wparam == -1)
+		{
+			//errore di encoding
+		}
+		else if (wparam == 0)
+		{
+			//tick di download
+			if (user_data->guiController)
+			{
+				char message[1001];
+				memset(message, 0, 1001);
+
+				float percent = user_data->actual_samples / (float)user_data->track_total_samples;
+				sprintf_s(message, "Avanzamento download ... (%d\%)", percent);
+				user_data->guiController->LogMessage(message);
+			}
+		}
 
 		LeaveCriticalSection(&user_data->spotify_lock);
 	}
@@ -755,7 +780,8 @@ int __stdcall music_delivery(sp_session *session, const sp_audioformat *format, 
 		if (secs - last_secs >= 10.0)
 		{
 			context->last_written_samples = context->actual_samples;
-			PostMessage(context->spotify_window, SPOTIFY_DOWNLOAD_STATUS, 0, 0);
+			//PostMessage(context->spotify_window, SPOTIFY_DOWNLOAD_STATUS, 0, 0);
+			OutputDebugStringA("Avanzamento");
 		}
 	}
 	else
@@ -769,7 +795,8 @@ int __stdcall music_delivery(sp_session *session, const sp_audioformat *format, 
 		else
 		{
 			//printf("Encoder ERRROR[%d]\r\n", ret);
-			PostMessage(context->spotify_window, SPOTIFY_DOWNLOAD_STATUS, (WPARAM)-1, 0);
+			//PostMessage(context->spotify_window, SPOTIFY_DOWNLOAD_STATUS, (WPARAM)-1, 0);
+			OutputDebugStringA("Errore encoder");
 			ret_frames = 0;
 
 		}

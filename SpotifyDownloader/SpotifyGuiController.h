@@ -20,6 +20,7 @@ class SpotifyGuiController : public BaseListener
 	MyButton	*logButton;
 	MyEdit		*usernameEdit;
 	MyEdit		*passwordEdit;
+	MyButton	*downloadButton;
 
 	HINSTANCE	instance;
 
