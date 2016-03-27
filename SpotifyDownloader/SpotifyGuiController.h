@@ -21,6 +21,7 @@ class SpotifyGuiController : public BaseListener
 	MyEdit		*usernameEdit;
 	MyEdit		*passwordEdit;
 	MyButton	*downloadButton;
+	MyTreeView	*downloadListTree;
 
 	HINSTANCE	instance;
 
@@ -50,7 +51,6 @@ class SpotifyGuiController : public BaseListener
 	static void __stdcall image_changed(sp_playlist *pl, const byte *image, void *userdata);
 	static void __stdcall track_message_changed(sp_playlist *pl, int position, const char *message, void *userdata);
 	static void __stdcall subscribers_changed(sp_playlist *pl, void *userdata);
-
 
 	void RefreshPlaylistContainer();
 

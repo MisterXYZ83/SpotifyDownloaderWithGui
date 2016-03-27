@@ -11,6 +11,8 @@
 #define USERNAME_ID		5
 #define PASSWORD_ID		6
 #define DOWNLOADBUTTON_ID 7
+#define DOWNLOADLIST_ID	8
+
 
 SpotifyGuiController::SpotifyGuiController(void *userdata)
 {
@@ -56,7 +58,6 @@ SpotifyGuiController::SpotifyGuiController(void *userdata)
 	data->playlist_cb->image_changed = SpotifyGuiController::image_changed;
 	data->playlist_cb->track_message_changed = SpotifyGuiController::track_message_changed;
 	data->playlist_cb->subscribers_changed = SpotifyGuiController::subscribers_changed;
-
 
 	if ( win )
 	{
@@ -135,6 +136,15 @@ SpotifyGuiController::SpotifyGuiController(void *userdata)
 			downloadButton->setEnableState(TRUE);
 			downloadButton->setID(DOWNLOADBUTTON_ID);
 			downloadButton->setBaseListener(this);
+		}
+
+		downloadListTree = new MyTreeView(instance, win->getHWND(), 690, 180, 200, 230);
+
+		if (downloadListTree)
+		{
+			downloadListTree->setID(DOWNLOADLIST_ID);
+			downloadListTree->setEnableState(TRUE);
+			downloadListTree->setBaseListener(this);
 		}
 	}
 }
@@ -235,18 +245,39 @@ LRESULT SpotifyGuiController::executeMessage(UINT idcontrol, HWND hwnd, UINT msg
 
 					if ( item )
 					{
-						sp_track *track = (sp_track *)playlistTree->getExtraData(item);
-
-						
+						sp_track *track = (sp_track *)trackTree->getExtraData(item);
 
 						selected_track = track;
 					}
 
 				}
 			}
+			else if (WM_NOTIFY == msg && NM_DBLCLK == ((LPNMHDR)lParam)->code)
+			{
+				if (downloadListTree)
+				{
+					HTREEITEM item = trackTree->getSelected();
+
+					if (item)
+					{
+						sp_track *track = (sp_track *)playlistTree->getExtraData(item);
+
+						TCHAR mess[1001];
+						memset(mess, 0, 1001);
+
+						_sntprintf_s(mess, 1000, TEXT("%hs"), sp_track_name(track));
+
+						downloadListTree->addItemAsLast(NULL, mess, track, NULL);
+					}
+				}
+			}
 		}
 		break;
 
+		case DOWNLOADLIST_ID:
+		{
+		}
+		break;
 	}
 
 	return 0;
