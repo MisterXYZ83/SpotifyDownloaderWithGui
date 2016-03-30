@@ -28,6 +28,7 @@ public:
 	HTREEITEM getItemWithRoutine(HTREEITEM parent, IsEqualRoutine routine, void *obj); 
 	BOOL getItem(HTREEITEM elem, TVITEM *item);
 	BOOL getNextItem(HTREEITEM elem, TVITEM *item);
+	HTREEITEM getNextHItem(HTREEITEM elem);
 	BOOL setItemIcon(HTREEITEM elem, HBITMAP icon);
 	BOOL setItemDefaultIcon(HTREEITEM elem);
 

@@ -234,7 +234,11 @@ int SpotifyDownloadTrack(SpotifyUserData *instance, sp_track *track)
 			}
 
 			//printf("Avvio download %s\r\n", track_name);
+			char *message = (char *)malloc(1001);
+			memset(message, 0, 1001);
 
+			sprintf_s(message, 1000, "Avvio download %s...", track_name);
+			instance->guiController->LogMessage(message);
 		}
 
 		sp_error err = sp_session_player_load(instance->spotify, instance->track);
@@ -258,6 +262,19 @@ int SpotifyDownloadTrack(SpotifyUserData *instance, sp_track *track)
 	else return -1;
 }
 
+int SpotifyDownloadTracks(SpotifyUserData *data)
+{
+	if (data->num_tracks > 0 && data->tracks)
+	{
+		//invio scaricamento tracce
+		data->actual_download_index = 0;
+		PostMessage(data->spotify_window, SPOTIFY_START_NEXT_DOWNLOAD, 0, 0);
+
+		return 0;
+	}
+
+	return -1;
+}
 
 ////////////////////////////////////////
 //ROUTINE PRIVATE
@@ -404,6 +421,17 @@ LRESULT SpotifyHandleMessage(SpotifyUserData *user_data, UINT msg, WPARAM wparam
 		//CBFunction(this, NUTS_UPDATERTWATCH, IDVAR_LOGGED, 0);
 	}
 	break;
+	
+	case SPOTIFY_START_NEXT_DOWNLOAD:
+	{
+		//devo scaricare una traccia
+		if (!user_data->tracks || user_data->num_tracks <= 0 || user_data->actual_download_index > user_data->num_tracks) return 0;
+
+		sp_track *track = user_data->tracks[user_data->actual_download_index];
+
+		SpotifyDownloadTrack(user_data, track);
+	}
+	break;
 
 	case SPOTIFY_CLOSE_NUTS:
 	{
@@ -450,17 +478,22 @@ LRESULT SpotifyHandleMessage(SpotifyUserData *user_data, UINT msg, WPARAM wparam
 		if (wparam == -1)
 		{
 			//errore di encoding
+			char *message = (char *)malloc(1001);
+			memset(message, 0, 1001);
+
+			sprintf_s(message, 1000, "Errore encoding ...");
+			user_data->guiController->LogMessage(message);
 		}
 		else if (wparam == 0)
 		{
 			//tick di download
 			if (user_data->guiController)
 			{
-				char message[1001];
-				memset(message, 0, 1001);
+				char *message = (char *)malloc(10001);
+				memset(message, 0, 10001);
 
-				float percent = user_data->actual_samples / (float)user_data->track_total_samples;
-				sprintf_s(message, "Avanzamento download ... (%d\%)", percent);
+				float percent = 100.0 * user_data->actual_samples / (float)user_data->track_total_samples;
+				sprintf_s(message, 10000, "Avanzamento download ... (%2.0f/100)", percent);
 				user_data->guiController->LogMessage(message);
 			}
 		}
@@ -580,7 +613,8 @@ void __stdcall  logged_in(sp_session *session, sp_error error)
 	EnterCriticalSection(&context->spotify_lock);
 
 	context->container = sp_session_playlistcontainer(session);
-	sp_playlistcontainer_add_callbacks(context->container, context->container_cb, context->guiController);
+	
+	if ( context->container ) sp_playlistcontainer_add_callbacks(context->container, context->container_cb, context->guiController);
 
 	LeaveCriticalSection(&context->spotify_lock);
 
@@ -780,8 +814,8 @@ int __stdcall music_delivery(sp_session *session, const sp_audioformat *format, 
 		if (secs - last_secs >= 10.0)
 		{
 			context->last_written_samples = context->actual_samples;
-			//PostMessage(context->spotify_window, SPOTIFY_DOWNLOAD_STATUS, 0, 0);
-			OutputDebugStringA("Avanzamento");
+			PostMessage(context->spotify_window, SPOTIFY_DOWNLOAD_STATUS, 0, 0);
+			//OutputDebugStringA("Avanzamento");
 		}
 	}
 	else
@@ -795,8 +829,8 @@ int __stdcall music_delivery(sp_session *session, const sp_audioformat *format, 
 		else
 		{
 			//printf("Encoder ERRROR[%d]\r\n", ret);
-			//PostMessage(context->spotify_window, SPOTIFY_DOWNLOAD_STATUS, (WPARAM)-1, 0);
-			OutputDebugStringA("Errore encoder");
+			PostMessage(context->spotify_window, SPOTIFY_DOWNLOAD_STATUS, (WPARAM)-1, 0);
+			//OutputDebugStringA("Errore encoder");
 			ret_frames = 0;
 
 		}
@@ -848,6 +882,7 @@ void track_ended(SpotifyUserData *context)
 {
 	if (context && context->encoder_buffer && context->track)
 	{
+		sp_session_player_unload(context->spotify);
 
 		//printf("\r\nTraccia %s terminata!!\r\n\r\n", context->actual_download_track_name);
 
@@ -882,10 +917,20 @@ void track_ended(SpotifyUserData *context)
 
 		context->encoder_ready = 0;
 
-		sp_session_player_unload(context->spotify);
+		//riavvio il download di una nuova traccia
+		if (context->tracks && (context->actual_download_index + 1)< context->num_tracks )
+		{
+			//scaricamento tracce multiplo
+			context->actual_download_index++;
 
-		//notifica al thread main il termine delle operazioni
-
+			PostMessage(context->spotify_window, SPOTIFY_START_NEXT_DOWNLOAD, 0, 0);
+		}
+		else if (context->tracks)
+		{
+			context->num_tracks = 0;
+			free(context->tracks);
+			context->tracks = 0;
+		}
 	}
 }
 

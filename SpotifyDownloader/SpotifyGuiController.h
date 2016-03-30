@@ -70,6 +70,8 @@ public:
 
 	sp_track *GetCurrentTrack();
 	sp_track *GetNextTrack();
+	sp_track *GetFirstDownloadTrack();
+	sp_track *GetNextDownloadTrack(sp_track *actual);
 
 	void LogMessage ( char *message );
 

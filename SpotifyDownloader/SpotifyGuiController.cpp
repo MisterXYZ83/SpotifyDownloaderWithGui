@@ -204,8 +204,29 @@ LRESULT SpotifyGuiController::executeMessage(UINT idcontrol, HWND hwnd, UINT msg
 		{
 			if (selected_track)
 			{
-				SpotifyDownloadTrack(data, selected_track);
+				//SpotifyDownloadTrack(data, selected_track);
 				//if (logWin) logWin->addRow(TEXT("Inizio download %s"), sp_track_name(selected_track));
+				
+				//avvio il download della prima traccia della treeview
+				//creo una lista di tracce 
+				data->num_tracks = downloadListTree->getItemCount();
+				if (data->num_tracks <= 0) return 0;
+				
+				if (data->tracks) free(data->tracks);
+				data->tracks = NULL;
+
+				data->tracks = (sp_track **)malloc(sizeof(sp_track *) * data->num_tracks);
+
+				HTREEITEM item = downloadListTree->getRootItem();
+
+				for (int k = 0; k < data->num_tracks; k++)
+				{
+					data->tracks[k] = (sp_track *)downloadListTree->getExtraData(item);
+					item = downloadListTree->getNextHItem(item);
+				}
+
+				//avvio download
+				SpotifyDownloadTracks(data);
 			}
 		}
 		break;
@@ -318,6 +339,54 @@ sp_track *SpotifyGuiController::GetCurrentTrack()
 	
 	return s_track;
 }
+
+sp_track *SpotifyGuiController::GetFirstDownloadTrack()
+{
+	sp_track *s_track = 0;
+
+	if (downloadListTree)
+	{
+
+		HTREEITEM root = downloadListTree->getRootItem();
+
+		if (root)
+		{
+			s_track = (sp_track *)downloadListTree->getExtraData(root);
+
+			downloadListTree->selectItem(root);
+		}
+	}
+
+	return s_track;
+}
+
+sp_track *SpotifyGuiController::GetNextDownloadTrack(sp_track *actual)
+{
+	sp_track *s_track = 0;
+
+	if (downloadListTree)
+	{
+
+		HTREEITEM item = downloadListTree->getRootItem();
+
+		while (1)
+		{
+			s_track = (sp_track *)downloadListTree->getExtraData(item);
+
+			if (s_track == actual)
+			{
+				item = downloadListTree->getNextHItem(item);
+				s_track = (sp_track *)downloadListTree->getExtraData(item);
+			}
+			else if (s_track == NULL) return NULL;
+
+			item = downloadListTree->getNextHItem(item);
+		}
+	}
+
+	return s_track;
+}
+
 
 void SpotifyGuiController::RefreshPlaylistTracks ( sp_playlist *plist )
 {

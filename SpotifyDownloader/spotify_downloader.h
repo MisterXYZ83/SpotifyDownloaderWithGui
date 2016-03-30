@@ -89,7 +89,6 @@ static DWORD __stdcall SpotifyMainProc(LPVOID data);
 #define SPOTIFY_STOP_SINGLE_TRACK		WM_APP + 60
 #define SPOTIFY_CLOSE_SINGLE_TRACK		WM_APP + 61
 #define SPOTIFY_DOWNLOAD_STATUS			WM_APP + 62
-#define SPOTIFY_START_NEXT_DOWNLOAD		WM_APP + 63
 
 
 struct DownloadItem
@@ -121,6 +120,9 @@ struct SpotifyUserData
 	HWND				spotify_window;
 
 	sp_track *track;
+	
+	sp_track **tracks;
+	int num_tracks;
 
 	int metadata_loaded;
 
@@ -172,6 +174,7 @@ struct SpotifyUserData
 
 	DownloadItem *download_list;
 	DownloadItem *actual_download_item;
+	int actual_download_index;
 };
 
 
@@ -184,3 +187,4 @@ int SpotifyLogIn(SpotifyUserData *data, char *username, char *password);
 int SpotifyLogOut(SpotifyUserData *data);
 
 int SpotifyDownloadTrack(SpotifyUserData *data, sp_track *track);
+int SpotifyDownloadTracks(SpotifyUserData *data);

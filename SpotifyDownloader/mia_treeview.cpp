@@ -45,6 +45,12 @@ BOOL MyTreeView::getNextItem( HTREEITEM elem, TVITEM *item ){
 	}else return FALSE;
 }
 
+HTREEITEM MyTreeView::getNextHItem(HTREEITEM elem) {
+	if (!elem) return FALSE;
+	HTREEITEM nxt = (HTREEITEM)SendMessage(this->getHWND(), TVM_GETNEXTITEM, TVGN_NEXT, (LPARAM)elem);
+	return nxt;
+}
+
 HIMAGELIST MyTreeView::setImageList( HBITMAP defIcon ){
 	//if ( !defImage ) return 0;
 	this->imgList = ImageList_Create(MYTREEVIEW_DEFAULT_ICONSIZE,MYTREEVIEW_DEFAULT_ICONSIZE,ILC_COLOR24,0,0);
